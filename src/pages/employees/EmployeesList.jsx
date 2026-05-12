@@ -21,7 +21,8 @@ const emptyForm = {
   phone: "",
   email: "",
   startDate: new Date().toISOString().split('T')[0],
-  isActive: true
+  isActive: true,
+  zkUserId: "",
 };
 
 const EmployeesList = () => {
@@ -52,6 +53,7 @@ const EmployeesList = () => {
       email:         employee.email || "",
       startDate:     employee.startDate || new Date().toISOString().split('T')[0],
       isActive:      employee.isActive ?? true,
+      zkUserId:      employee.zkUserId || "",
     });
     setIsModalOpen(true);
   };
@@ -74,6 +76,7 @@ const EmployeesList = () => {
         ...formData,
         monthlySalary: Number(formData.monthlySalary),
         overtimeRate:  Number(formData.overtimeRate),
+        zkUserId:      formData.zkUserId ? String(formData.zkUserId).trim() : "",
         // keep hourlyRate as 0 for backward compat with old records
         hourlyRate: 0,
         pettyCashLimit: 0,
@@ -212,6 +215,20 @@ const EmployeesList = () => {
             required
           />
           <Input label={t("startDate")} name="startDate" type="date" value={formData.startDate} onChange={handleInputChange} required />
+
+          <div className="md:col-span-2">
+            <Input
+              label="رقم الموظف على جهاز البصمة (LX50)"
+              name="zkUserId"
+              type="number"
+              value={formData.zkUserId}
+              onChange={handleInputChange}
+              placeholder="مثال: 1 أو 2 أو 3 ..."
+            />
+            <p style={{ fontSize: "11px", color: "#9090A8", marginTop: "4px" }}>
+              الرقم المسجَّل على جهاز ZKTeco — يُستخدم لربط بصمة الموظف تلقائيًا بسجل الحضور
+            </p>
+          </div>
 
           {editingEmployee && (
             <div className="md:col-span-2 flex items-center gap-3 p-4 bg-bg rounded-xl border border-border">

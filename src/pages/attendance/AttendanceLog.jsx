@@ -121,16 +121,38 @@ const AttendanceLog = () => {
       <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#F5F5F8", margin: "0 auto" }} />
     );
     const s = STATUS[record.status] || STATUS.present;
+    const isDevice = record.source === "device";
+
+    // Build tooltip: show check-in / check-out times when available
+    const tipParts = [];
+    if (record.checkIn)  tipParts.push(`دخول: ${record.checkIn}`);
+    if (record.checkOut) tipParts.push(`خروج: ${record.checkOut}`);
+    if (isDevice)        tipParts.push("📱 تلقائي");
+    const tooltip = tipParts.join(" | ") || undefined;
+
     return (
-      <div style={{
-        width: "28px", height: "28px", borderRadius: "6px",
-        background: s.bg, color: s.color,
-        fontSize: "10px", fontWeight: 700,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        margin: "0 auto",
-        letterSpacing: "0.02em",
-      }}>
+      <div
+        title={tooltip}
+        style={{
+          width: "28px", height: "28px", borderRadius: "6px",
+          background: s.bg, color: s.color,
+          fontSize: "10px", fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto",
+          letterSpacing: "0.02em",
+          position: "relative",
+          cursor: "pointer",
+          outline: isDevice ? `1.5px solid ${s.dot}` : "none",
+        }}
+      >
         {s.label}
+        {isDevice && (
+          <span style={{
+            position: "absolute", top: "-4px", right: "-4px",
+            width: "8px", height: "8px", borderRadius: "50%",
+            background: "#6366f1", border: "1.5px solid #fff",
+          }} />
+        )}
       </div>
     );
   };
@@ -238,6 +260,13 @@ const AttendanceLog = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <div style={{ width: "18px", height: "18px", borderRadius: "4px", background: "#F5F5F8" }} />
           <span style={{ fontSize: "12px", color: "#6B6B80" }}>{language === "ar" ? "لم يسجَّل" : "Not recorded"}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ position: "relative", width: "18px", height: "18px" }}>
+            <div style={{ width: "18px", height: "18px", borderRadius: "4px", background: "#DCFCE7", border: "1.5px solid #16A34A" }} />
+            <div style={{ position: "absolute", top: "-3px", right: "-3px", width: "7px", height: "7px", borderRadius: "50%", background: "#6366f1", border: "1px solid #fff" }} />
+          </div>
+          <span style={{ fontSize: "12px", color: "#6B6B80" }}>{language === "ar" ? "تلقائي (جهاز البصمة)" : "Auto (fingerprint device)"}</span>
         </div>
       </div>
 

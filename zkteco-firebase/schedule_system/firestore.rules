@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() { return request.auth != null; }
+    function getUserData() { 
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; 
+    }
+    function isAdmin() { return isAuth() && getUserData().role == 'admin'; }
+    function isSecretary() { return isAuth() && getUserData().role == 'secretary'; }
+    function isSpecialist() { return isAuth() && getUserData().role == 'specialist'; }
+
+    match /users/{userId} {
+      // Anyone authenticated can read their own profile, admins can read/write all
+      allow read: if isAuth(); 
+      allow write: if isAdmin();
+    }
+
+    match /secretaries/{secretaryId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /specialists/{specialistId} {
+      allow read: if isAuth(); // Everyone needs to read specialists list
+      allow write: if isAdmin(); // only admins can add/delete
+      // Note: secretaries might need to update availability? The plan says "Secretaries can read/write all except user management", so let's give them write here too.
+      allow write: if isAdmin() || isSecretary();
+    }
+
+    match /children/{childId} {
+      allow read, write: if isAdmin() || isSecretary();
+    }
+
+    match /sessions/{sessionId} {
+      allow write: if isAdmin() || isSecretary();
+      allow update: if isSpecialist() && resource.data.specialistId == getUserData().specialistId;
+      // Allow all authenticated staff to read sessions so the schedule grid can load without complex composite index queries
+      allow read: if isAuth();
+    }
+
+    // Default block
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

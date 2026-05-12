@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: zkteco-firebase
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Sync mode — set to "adms" for Render deployment (zklib requires local network)
+      - key: SYNC_MODE
+        value: adms
+
+      # ZKTeco device (only needed if SYNC_MODE=zklib; leave blank for ADMS)
+      - key: DEVICE_IP
+        value: ""
+      - key: DEVICE_PORT
+        value: "4370"
+      - key: DEVICE_SERIAL
+        value: "BR63232460857"
+
+      # Attendance thresholds
+      - key: WORK_START_HOUR
+        value: "9"
+      - key: LATE_CUTOFF_HOUR
+        value: "11"
+      - key: HALF_DAY_HOURS
+        value: "4"
+
+      # Firebase credentials — set these as secret env vars in Render dashboard
+      - key: FIREBASE_PROJECT_ID
+        scope: run
+      - key: FIREBASE_PRIVATE_KEY_ID
+        scope: run
+      - key: FIREBASE_PRIVATE_KEY
+        scope: run
+      - key: FIREBASE_CLIENT_EMAIL
+        scope: run
+      - key: FIREBASE_CLIENT_ID
+        scope: run
+      - key: FIREBASE_AUTH_URI
+        value: "https://accounts.google.com/o/oauth2/auth"
+      - key: FIREBASE_TOKEN_URI
+        value: "https://oauth2.googleapis.com/token"
+      - key: FIREBASE_AUTH_PROVIDER_CERT_URL
+        value: "https://www.googleapis.com/oauth2/v1/certs"
+      - key: FIREBASE_CLIENT_CERT_URL
+        scope: run

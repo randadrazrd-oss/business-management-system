@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+dist/
+build/
+serviceAccountKey.json
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
