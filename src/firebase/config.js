@@ -3,14 +3,12 @@ import { initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCESmn8jJIE04dbrbZwcZcZxeQz_MAHcQg",
-  authDomain: "shop-dashboard-285a2.firebaseapp.com",
-  databaseURL: "https://shop-dashboard-285a2-default-rtdb.firebaseio.com",
-  projectId: "shop-dashboard-285a2",
-  storageBucket: "shop-dashboard-285a2.firebasestorage.app",
-  messagingSenderId: "712065723372",
-  appId: "1:712065723372:web:a124ac91846d209d106ec9",
-  measurementId: "G-HS5967MNW1"
+  apiKey: "AIzaSyA1HYk68gl2Bo24R_ztei3vGGjqssZsCMc",
+  authDomain: "business-management-syst-13f04.firebaseapp.com",
+  projectId: "business-management-syst-13f04",
+  storageBucket: "business-management-syst-13f04.firebasestorage.app",
+  messagingSenderId: "934348867334",
+  appId: "1:934348867334:web:651bc5475b0817bdffc087"
 };
 
 const app = initializeApp(firebaseConfig);
