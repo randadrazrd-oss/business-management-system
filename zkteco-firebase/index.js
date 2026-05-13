@@ -58,7 +58,7 @@ app.use((err, req, res, next) => {
 
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = config.port;
-const server = app.listen(PORT, async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   const modeLabel = config.syncMode === 'zklib' ? 'ZKLib (TCP pull)' : 'ADMS (HTTP push)';
   const deviceLine =
     config.syncMode === 'zklib'
