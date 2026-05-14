@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+/* Cairo covers Arabic glyphs — required for correct PDF export of Arabic text */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=block');
 
 @import "tailwindcss";
 
@@ -18,13 +20,13 @@
   --color-sidebar:      #FFFFFF;    /* Sidebar background */
   --color-sidebar-text: #6B6B80;    /* Inactive nav items */
 
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Cairo', 'Inter', system-ui, sans-serif;
 }
 
 @layer base {
   body {
     @apply bg-bg text-text;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Cairo', 'Inter', system-ui, sans-serif;
     font-weight: 400;
   }
 }

@@ -197,27 +197,40 @@ const Reports = () => {
               )}
             </div>
 
-            <Button 
+            <Button
               type="button"
               disabled={isPdfMode}
-              onClick={() => {
+              onClick={async () => {
                 setIsPdfMode(true);
                 // Give React time to re-render with PDF styles
-                setTimeout(() => {
-                  const element = document.getElementById('report-content');
-                  const opt = {
-                    margin:       10,
-                    filename:     `Report_${format(new Date(), "yyyyMMdd")}.pdf`,
-                    image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 2, useCORS: true },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                  };
-                  
-                  html2pdf().set(opt).from(element).save().then(() => {
-                    setIsPdfMode(false);
-                  });
-                }, 300);
-              }} 
+                await new Promise(r => setTimeout(r, 300));
+                // Wait for all fonts (including Cairo Arabic) to finish loading
+                await document.fonts.ready;
+
+                const element = document.getElementById('report-content');
+                const opt = {
+                  margin:       10,
+                  filename:     `REP-${format(new Date(), "yyyyMMdd")}-${Math.floor(Math.random()*1000)}.pdf`,
+                  image:        { type: 'jpeg', quality: 0.98 },
+                  html2canvas:  {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    // Ensure the cloned snapshot inherits Cairo so Arabic glyphs shape correctly
+                    onclone: (_doc, el) => {
+                      el.style.fontFamily = "'Cairo', 'Inter', system-ui, sans-serif";
+                      el.querySelectorAll('*').forEach(node => {
+                        node.style.fontFamily = "'Cairo', 'Inter', system-ui, sans-serif";
+                      });
+                    }
+                  },
+                  jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().set(opt).from(element).save().then(() => {
+                  setIsPdfMode(false);
+                });
+              }}
               style={{ display: "flex", alignItems: "center", gap: "6px" }}
             >
               <Download size={15} strokeWidth={1.75} />
