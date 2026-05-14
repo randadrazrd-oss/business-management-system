@@ -7,7 +7,6 @@ import { useTranslation } from "../../context/AppContext";
 import { Printer, FileText, Download, PieChart, TrendingUp, Users, Wallet, Activity, CreditCard, Layers, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, isSameMonth, isSameYear, addMonths, subMonths, addYears, subYears } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
-import html2pdf from "html2pdf.js";
 
 const Reports = () => {
   const { t, language } = useTranslation();
@@ -202,34 +201,13 @@ const Reports = () => {
               disabled={isPdfMode}
               onClick={async () => {
                 setIsPdfMode(true);
-                // Give React time to re-render with PDF styles
+                // Wait for React to re-render the full report layout
                 await new Promise(r => setTimeout(r, 300));
-                // Wait for all fonts (including Cairo Arabic) to finish loading
+                // Wait for Cairo font to fully load so Arabic text shapes correctly
                 await document.fonts.ready;
-
-                const element = document.getElementById('report-content');
-                const opt = {
-                  margin:       10,
-                  filename:     `REP-${format(new Date(), "yyyyMMdd")}-${Math.floor(Math.random()*1000)}.pdf`,
-                  image:        { type: 'jpeg', quality: 0.98 },
-                  html2canvas:  {
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    // Ensure the cloned snapshot inherits Cairo so Arabic glyphs shape correctly
-                    onclone: (_doc, el) => {
-                      el.style.fontFamily = "'Cairo', 'Inter', system-ui, sans-serif";
-                      el.querySelectorAll('*').forEach(node => {
-                        node.style.fontFamily = "'Cairo', 'Inter', system-ui, sans-serif";
-                      });
-                    }
-                  },
-                  jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-
-                html2pdf().set(opt).from(element).save().then(() => {
-                  setIsPdfMode(false);
-                });
+                // Use browser's native print — handles Arabic shaping perfectly
+                window.onafterprint = () => setIsPdfMode(false);
+                window.print();
               }}
               style={{ display: "flex", alignItems: "center", gap: "6px" }}
             >
