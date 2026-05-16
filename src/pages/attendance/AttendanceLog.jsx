@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import PageWrapper from "../../components/layout/PageWrapper";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -12,14 +12,12 @@ import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
-  isSameDay,
   addMonths,
   subMonths,
   isToday,
-  isWeekend,
 } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Save, Users, CheckCircle, XCircle, Clock, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Save, Users, CheckCircle, XCircle, Clock, CalendarDays, Upload, FileText } from "lucide-react";
 
 // ── Design tokens ───────────────────────────────────────────────────
 const STATUS = {
@@ -38,6 +36,11 @@ const AttendanceLog = () => {
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedEmployeeForStats, setSelectedEmployeeForStats] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);   // parsed rows ready to show
+  const [importProcessing, setImportProcessing] = useState(false);
+  const [importResult, setImportResult] = useState(null);   // { imported, updated, unmatched }
+  const fileInputRef = useRef(null);
   const [cellData, setCellData] = useState({
     status: "present",
     checkIn: "09:00",
@@ -189,6 +192,82 @@ const AttendanceLog = () => {
 
   const activeEmployees = employees.filter(e => e.isActive !== false);
 
+  // ── USB / attlog.dat import ──────────────────────────────────────
+  const determineStatusFromTime = (checkIn, checkOut) => {
+    if (!checkIn) return "absent";
+    const [h, m] = checkIn.split(":").map(Number);
+    const totalMin = h * 60 + m;
+    if (checkOut) {
+      const [oh, om] = checkOut.split(":").map(Number);
+      if ((oh * 60 + om - totalMin) / 60 < 4) return "half_day";
+    }
+    if (totalMin <= 9 * 60)  return "present";
+    if (totalMin <= 11 * 60) return "late";
+    return "half_day";
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      // Group all punches by userId + date, take earliest as check-in, latest as check-out
+      const groups = {};
+      for (const rawLine of text.split("\n")) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        // Split by tab; some devices space-pad columns
+        const parts = line.split(/\t+/).map(p => p.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const userId = parts[0];
+        if (!userId || isNaN(Number(userId))) continue;
+        // DateTime may be one token "2026-05-13 08:55:00" or two tokens
+        let dtStr = parts[1];
+        if (!dtStr.includes(" ") && parts[2]) dtStr = `${parts[1]} ${parts[2]}`;
+        const dt = new Date(dtStr.replace(" ", "T"));
+        if (isNaN(dt.getTime())) continue;
+        const dateStr = format(dt, "yyyy-MM-dd");
+        const timeStr = format(dt, "HH:mm");
+        const key = `${userId}_${dateStr}`;
+        if (!groups[key]) groups[key] = { userId, dateStr, times: [] };
+        groups[key].times.push(timeStr);
+      }
+      // Build preview rows with employee lookup
+      const rows = Object.values(groups).map(({ userId, dateStr, times }) => {
+        const sorted = [...times].sort();
+        const checkIn  = sorted[0];
+        const checkOut = sorted.length > 1 ? sorted[sorted.length - 1] : null;
+        const emp = employees.find(e => String(e.zkUserId) === String(userId));
+        return { userId, dateStr, checkIn, checkOut, emp, status: determineStatusFromTime(checkIn, checkOut) };
+      });
+      rows.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+      setImportPreview(rows);
+      setImportResult(null);
+      setIsImportModalOpen(true);
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // reset so same file can be re-selected
+  };
+
+  const handleImport = async () => {
+    setImportProcessing(true);
+    let imported = 0, updated = 0;
+    const unmatched = [];
+    for (const { userId, dateStr, checkIn, checkOut, emp, status } of importPreview) {
+      if (!emp) { if (!unmatched.includes(userId)) unmatched.push(userId); continue; }
+      const hoursData = checkOut ? calculateWorkHours(checkIn, checkOut, 8) : { actualHours: 0, overtimeHours: 0, lateMinutes: 0 };
+      const recordData = { employeeId: emp.id, date: new Date(dateStr), status, checkIn: checkIn || "", checkOut: checkOut || "", notes: "", source: "device", ...hoursData };
+      const existing = attendanceMap[emp.id]?.[dateStr];
+      try {
+        if (existing) { await updateDocument(existing.id, recordData); updated++; }
+        else           { await addDocument(recordData); imported++; }
+      } catch (_) {}
+    }
+    setImportResult({ imported, updated, unmatched });
+    setImportProcessing(false);
+  };
+
   return (
     <PageWrapper title={t("attendance")}>
       <Toaster position="top-center" />
@@ -201,6 +280,18 @@ const AttendanceLog = () => {
             {language === "ar" ? "دفتر حضور الموظفين الشهري" : "Monthly employee attendance register"}
           </p>
         </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          {/* USB import button */}
+          <input ref={fileInputRef} type="file" accept=".dat,.txt,.log" style={{ display: "none" }} onChange={handleFileSelect} />
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}
+          >
+            <Upload size={14} strokeWidth={1.75} />
+            {language === "ar" ? "استيراد من فلاشة" : "Import from USB"}
+          </Button>
 
         {/* Month navigator */}
         <div style={{
@@ -223,6 +314,7 @@ const AttendanceLog = () => {
           >
             <ChevronLeft size={16} strokeWidth={2} />
           </button>
+        </div>
         </div>
       </div>
 
@@ -393,6 +485,117 @@ const AttendanceLog = () => {
           </table>
         </div>
       </div>
+
+      {/* ── USB Import modal ── */}
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => { setIsImportModalOpen(false); setImportPreview([]); setImportResult(null); }}
+        title={language === "ar" ? "استيراد بيانات البصمة من الفلاشة" : "Import Attendance from USB"}
+        footer={
+          importResult ? (
+            <Button onClick={() => { setIsImportModalOpen(false); setImportPreview([]); setImportResult(null); }}>
+              {language === "ar" ? "إغلاق" : "Close"}
+            </Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => { setIsImportModalOpen(false); setImportPreview([]); }} disabled={importProcessing}>
+                {language === "ar" ? "إلغاء" : "Cancel"}
+              </Button>
+              <Button onClick={handleImport} disabled={importProcessing || importPreview.length === 0} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Upload size={14} strokeWidth={1.75} />
+                {importProcessing
+                  ? (language === "ar" ? "جارٍ الاستيراد..." : "Importing...")
+                  : (language === "ar" ? `استيراد ${importPreview.length} سجل` : `Import ${importPreview.length} records`)}
+              </Button>
+            </>
+          )
+        }
+      >
+        {importResult ? (
+          // ── Result screen ──
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ background: "#DCFCE7", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                <p style={{ fontSize: "28px", fontWeight: 700, color: "#16A34A" }}>{importResult.imported}</p>
+                <p style={{ fontSize: "12px", color: "#16A34A", fontWeight: 500 }}>{language === "ar" ? "سجل جديد" : "New records"}</p>
+              </div>
+              <div style={{ background: "#EEF2FF", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                <p style={{ fontSize: "28px", fontWeight: 700, color: "#4F46E5" }}>{importResult.updated}</p>
+                <p style={{ fontSize: "12px", color: "#4F46E5", fontWeight: 500 }}>{language === "ar" ? "سجل محدَّث" : "Updated records"}</p>
+              </div>
+            </div>
+            {importResult.unmatched.length > 0 && (
+              <div style={{ background: "#FEF9C3", borderRadius: "10px", padding: "14px 16px", border: "0.5px solid #FDE047" }}>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "#854D0E", marginBottom: "6px" }}>
+                  {language === "ar" ? "⚠ معرفات غير مرتبطة بموظف:" : "⚠ User IDs with no matching employee:"}
+                </p>
+                <p style={{ fontSize: "13px", color: "#854D0E", fontFamily: "monospace" }}>
+                  {importResult.unmatched.join(", ")}
+                </p>
+                <p style={{ fontSize: "11px", color: "#92400E", marginTop: "6px" }}>
+                  {language === "ar"
+                    ? "افتح ملف الموظف وأضف رقم ZK User ID المناسب ثم أعد الاستيراد."
+                    : "Open the employee profile and set the matching ZK User ID, then re-import."}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          // ── Preview screen ──
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#F0F0F6", borderRadius: "10px", padding: "12px 16px" }}>
+              <FileText size={18} strokeWidth={1.75} color="#6B6B80" />
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a2e" }}>
+                  {language === "ar" ? `تم العثور على ${importPreview.length} سجل حضور` : `Found ${importPreview.length} attendance records`}
+                </p>
+                <p style={{ fontSize: "11px", color: "#9090A8", marginTop: "2px" }}>
+                  {language === "ar"
+                    ? `${importPreview.filter(r => r.emp).length} موظف مرتبط، ${importPreview.filter(r => !r.emp).length} غير مرتبط`
+                    : `${importPreview.filter(r => r.emp).length} matched, ${importPreview.filter(r => !r.emp).length} unmatched`}
+                </p>
+              </div>
+            </div>
+            <div style={{ maxHeight: "340px", overflowY: "auto", borderRadius: "10px", border: "0.5px solid #E8E8EC" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead style={{ position: "sticky", top: 0, background: "#FAFAFA" }}>
+                  <tr>
+                    {[
+                      language === "ar" ? "الموظف" : "Employee",
+                      language === "ar" ? "التاريخ" : "Date",
+                      language === "ar" ? "دخول" : "In",
+                      language === "ar" ? "خروج" : "Out",
+                      language === "ar" ? "الحالة" : "Status",
+                    ].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "right", color: "#9090A8", fontWeight: 500, borderBottom: "0.5px solid #E8E8EC" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.map((row, i) => {
+                    const s = STATUS[row.status] || STATUS.present;
+                    return (
+                      <tr key={i} style={{ borderBottom: "0.5px solid #F0F0F4", background: row.emp ? "transparent" : "#FFF8F0" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 500, color: row.emp ? "#1a1a2e" : "#DC2626" }}>
+                          {row.emp ? (language === "ar" ? row.emp.nameAr : row.emp.name) : `ID: ${row.userId} ⚠`}
+                        </td>
+                        <td style={{ padding: "8px 12px", color: "#6B6B80", fontFamily: "monospace" }}>{row.dateStr}</td>
+                        <td style={{ padding: "8px 12px", color: "#1a1a2e", fontFamily: "monospace" }}>{row.checkIn || "—"}</td>
+                        <td style={{ padding: "8px 12px", color: "#6B6B80", fontFamily: "monospace" }}>{row.checkOut || "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, background: s.bg, color: s.color }}>
+                            {t(row.status)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ── Attendance modal ── */}
       <Modal
