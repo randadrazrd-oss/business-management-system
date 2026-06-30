@@ -9,6 +9,29 @@ import { state } from '../state.js';
 
 const router = express.Router();
 
+router.get('/cdata', (req, res, next) => {
+  if (req.query.options !== 'all') {
+    next();
+    return;
+  }
+
+  const deviceSerial = req.query.SN || 'UNKNOWN';
+  console.log(`Device options request: SN=${deviceSerial}`);
+  state.lastDeviceContact = Date.now();
+  res.type('text/plain').send([
+    `GET OPTION FROM: ${deviceSerial}`,
+    'Stamp=0',
+    'OpStamp=0',
+    'ErrorDelay=30',
+    'Delay=15',
+    'TransTimes=00:00;14:00',
+    'TransInterval=1',
+    'TransFlag=1111000000',
+    'Realtime=1',
+    'Encrypt=0',
+  ].join('\n'));
+});
+
 /**
  * GET /iclock/cdata
  * Device polls this endpoint for configuration (heartbeat).
