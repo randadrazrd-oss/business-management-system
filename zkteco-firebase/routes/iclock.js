@@ -70,6 +70,18 @@ router.post('/cdata', async (req, res) => {
 });
 
 /**
+ * POST /iclock/registry
+ * Some ZKTeco firmware versions register the device after each config poll.
+ * Returning OK keeps the ADMS session healthy so punches can be pushed later.
+ */
+router.post('/registry', (req, res) => {
+  const deviceSerial = req.query.SN || 'UNKNOWN';
+  console.log(`Device registry: SN=${deviceSerial}`);
+  state.lastDeviceContact = Date.now();
+  res.send('OK');
+});
+
+/**
  * GET /iclock/getrequest
  * Device checks for pending server commands.
  */
